@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SentimentScope</title>
+<style>
+  :root {
+    --bg: #f6f7f9; --card: #ffffff; --text: #1d2330; --muted: #667085; --border: #dde1e7;
+    --accent: #3b5bdb; --pos: #2f9e44; --neg: #e03131;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #11141a; --card: #1a1f28; --text: #e6e9ef; --muted: #98a2b3; --border: #2c3340;
+      --accent: #748ffc; --pos: #51cf66; --neg: #ff6b6b;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.5 system-ui, sans-serif; }
+  main { max-width: 640px; margin: 48px auto; padding: 0 16px; }
+  h1 { margin: 0 0 4px; font-size: 28px; }
+  p.sub { margin: 0 0 24px; color: var(--muted); }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 20px; }
+  textarea { width: 100%; min-height: 140px; padding: 12px; border: 1px solid var(--border); border-radius: 8px;
+    background: var(--bg); color: var(--text); font: inherit; resize: vertical; }
+  .examples { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
+  .examples button { border: 1px solid var(--border); background: transparent; color: var(--muted);
+    border-radius: 999px; padding: 4px 12px; font-size: 13px; cursor: pointer; }
+  #analyze { width: 100%; padding: 12px; border: 0; border-radius: 8px; background: var(--accent);
+    color: #fff; font: inherit; font-weight: 600; cursor: pointer; }
+  #analyze:disabled { opacity: .5; cursor: default; }
+  #result { margin-top: 20px; display: none; }
+  .label { font-size: 22px; font-weight: 700; text-transform: capitalize; }
+  .bar { height: 10px; border-radius: 999px; background: var(--neg); overflow: hidden; margin: 10px 0 6px; }
+  .bar div { height: 100%; background: var(--pos); transition: width .3s; }
+  .legend { display: flex; justify-content: space-between; font-size: 13px; color: var(--muted); }
+  #error { color: var(--neg); margin-top: 12px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>SentimentScope</h1>
+  <p class="sub">Type a movie review to classify it as positive or negative.</p>
+  <div class="card">
+    <textarea id="text" placeholder="The movie was a rollercoaster of emotions, and I loved every moment of it!"></textarea>
+    <div class="examples">
+      <button type="button">The movie was a rollercoaster of emotions, and I loved every moment of it!</button>
+      <button type="button">The plot was predictable, and the acting was subpar. A waste of time.</button>
+    </div>
+    <button id="analyze" disabled>Analyze</button>
+    <div id="error"></div>
+    <div id="result">
+      <div class="label" id="label"></div>
+      <div id="confidence"></div>
+      <div class="bar"><div id="bar"></div></div>
+      <div class="legend"><span>Negative</span><span>Positive</span></div>
+    </div>
+  </div>
+</main>
+<script>
+  const text = document.getElementById("text");
+  const analyze = document.getElementById("analyze");
+  const error = document.getElementById("error");
+  const result = document.getElementById("result");
+
+  text.addEventListener("input", () => { analyze.disabled = !text.value.trim(); });
+  document.querySelectorAll(".examples button").forEach(b => b.addEventListener("click", () => {
+    text.value = b.textContent;
+    analyze.disabled = false;
+  }));
+
+  analyze.addEventListener("click", async () => {
+    analyze.disabled = true;
+    analyze.textContent = "Analyzing…";
+    error.textContent = "";
+    try {
+      const res = await fetch("/predict", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: text.value }),
+      });
+      if (!res.ok) throw new Error(`Request failed (${res.status})`);
+      const data = await res.json();
+      const label = document.getElementById("label");
+      label.textContent = data.label;
+      label.style.color = data.label === "positive" ? "var(--pos)" : "var(--neg)";
+      document.getElementById("confidence").textContent = `${(data.confidence * 100).toFixed(1)}% confidence`;
+      document.getElementById("bar").style.width = `${data.positive * 100}%`;
+      result.style.display = "block";
+    } catch (e) {
+      error.textContent = e.message;
+    } finally {
+      analyze.textContent = "Analyze";
+      analyze.disabled = !text.value.trim();
+    }
+  });
+</script>
+</body>
+</html>
